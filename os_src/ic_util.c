@@ -1,11 +1,5 @@
 #include "ic_util.h"
 
-global_debug_data_t gdd = {0x7A7A};
-void initialize_gdd() {
-  gdd.vga_has_failed = 0;
-}
-
-
 size_t ic_strlen(const char* str) {
 	size_t len = 0;
 	while (str[len])

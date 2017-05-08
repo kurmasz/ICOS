@@ -109,3 +109,5 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
 %.img: $(BOOT_OBJ)/%.o $(os_objs) $(usr_objs) $(OS_OBJ)/ic_util_asm.o | linker.ld
 	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map.txt
 
+%.debug: $(os_sources) $(usr_sources) $(OS_SRC)/ic_util_asm.s | $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h)
+	gcc $(CFLAGS) -m32 -DDEBUG -g -DKERNEL_MAIN=$* -o $@ $^

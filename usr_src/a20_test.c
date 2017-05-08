@@ -5,7 +5,7 @@
 unsigned d1 = 0x57575757;  // initialized and put in .data section
 unsigned not_initialized;  // uninitialized and put in .bss section
 
-void bss_test() { 
+void a20_test() { 
 
   not_initialized = 0x11223344;
 

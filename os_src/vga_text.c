@@ -18,7 +18,6 @@ static uint16_t* vgat_buffer = (uint16_t*)0x79797979;
 static char vgat_initialized='\0';
 
 static void vgat_initialize() {
-
   uint8_t terminal_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
 #if DEBUG
   vgat_buffer = (uint16_t*) malloc(VGA_HEIGHT*VGA_WIDTH*sizeof(uint16_t));
@@ -113,13 +112,6 @@ void vgat_write_unsigned(vga_text_section_t* section, unsigned long value, const
   static char buffer[WRITEINT_BUFFER];
   int place = WRITEINT_BUFFER;
 
-  if (vgat_buffer != (uint16_t*) 0xb8000) {
-    vgat_buffer = (uint16_t*) 0xb8000;
-    vgat_write_string(section, "FAIL FAIL FAIL");
-    gdd.vga_has_failed = 1;
-  }
-
-
   if (value == 0) {
     vgat_putchar(section, '0');
   } else {
@@ -186,10 +178,10 @@ void vgat_write_signed(vga_text_section_t* section, signed long value, const cha
 #if DEBUG
 void vgat_dump() {
   char buffer[VGA_WIDTH*VGA_HEIGHT];
-  for (int i = 0; i < VGA_WIDTH*VGA_HEIGHT; i++) {
+  for (size_t i = 0; i < VGA_WIDTH*VGA_HEIGHT; i++) {
     buffer[i] = (char) vgat_buffer[i];
   }
-  for (int row = 0; row < VGA_HEIGHT; row++) {
+  for (size_t row = 0; row < VGA_HEIGHT; row++) {
     buffer[row*VGA_WIDTH + VGA_WIDTH -1] = '\0';
     puts(buffer + row*VGA_WIDTH);
   }

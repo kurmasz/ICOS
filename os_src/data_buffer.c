@@ -25,6 +25,11 @@ void data_initialize(char *buffer_in) {
   // The 6 gives us room to place the 'Full' 
   // message at the end.
   dd_max_place = max_address - dd_buffer - 6;
+
+  #ifdef DEBUG
+  dd_max_place = 1048576 - 6;
+  #endif
+
 }
 
 void data_putchar(char c) {
