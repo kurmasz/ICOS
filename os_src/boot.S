@@ -99,7 +99,7 @@ after_locals:
 	//
 	
 	mov $0x0E, %ah
-	mov $0x51, %al // 'S'
+	mov $0x53, %al // 'S'
 	int $0x10
 
 	mov $0x32, %al // '2'
@@ -108,55 +108,125 @@ after_locals:
 	mov $0x20, %al // ' '
 	int $0x10
 
-
-
+ 
 /*******************************************************************
  *	
  * enable A20
  *	
- * code from http://wiki.osdev.org/A20_Line
- *
  ******************************************************************/
-	mov     $0x2403, %ax            //--- A20-Gate Support ---
-	int     $0x15
-	jb      a20_ns                  //INT 15h is not supported
-	cmp     $0, %ah
-	jnz     a20_ns                  //INT 15h is not supported
-	 
-	mov     $0x2402, %ax            //--- A20-Gate Status ---
-	int     $0x15
-	jb      a20_failed              //couldn't get status
-	cmp     $0, %ah
-	jnz     a20_failed              //couldn't get status
-	 
-	cmp     $1, %al
-	jz      a20_activated           // A20 is already activated
-	 
-	mov     $0x2401, %ax            // --- A20-Gate Activate ---
-	int     $0x15
-	jb      a20_failed              // couldn't activate the gate
-	cmp     $0, %ah
-	jnz     a20_failed              // couldn't activate the gate
+	// skip over the check_a20 function definition below.
+	jmp set_a20 
+	
+	//
+	// Method to check if A20 is set.  Leaves $1 in %ax if
+	// A20 is set.  Code adapted from http://wiki.osdev.org/A20_Line
+	//
+	// WARNING: This function does not preserve registers.
+	//
+check_a20:
+	
+	xor %ax, %ax    // ax = 0
+	mov %ax, %es    // es = 0
+	not %ax	        // ax = 0xFFFF
+	mov %ax, %ds    // ds = 0xFFFF
 
-	jmp     a20_activated	
+	// The boot sector is required to end with the "magic" word 
+	// 0xaa55.  These are bytes 510 and 511 in the boot sector. 
+	// 510 = 0x1fe.  The boot sector is placed at address 0x7c00;
+	// thus, the magic word is at segmented address 0x0000:0x7dfe
+
+	// The segmented address 0xffff:0x7e0e corresponds to linear
+	// address 0x107dfe.  If the A20 line is not active (i.e., if
+        // there are only 20 active address lines, then address bit
+	// 21 is ignored and addresses 0x07dfe and 0x107dfe both refer
+	// to the same byte in memory.
+
+	// This code will set 0xffff:0x7e0e and check whether
+	// 0x0000:0x7dfe was also modifed.
+	
+	mov $0x7DFE, %di  
+	mov $0x7E0E, %si
+
+	movb $0x00, %es:(%di) // set 0x0000:0x7dfe to 0
+	movb $0xFF, %ds:(%si) // set 0xffff:0x7e0e to 0xff
+
+	// Check whether 0x0000:0xfdfe was also set to 0xff
+	cmpb $0xFF, %es:(%di) 
+
+	// If the are equal, then A20 is not set.
+	je check_a20__exit
+
+	// If they are not equal, then A20 is set.
+	mov $0x0E, %ah
+	mov $'y, %al 
+	int $0x10
+
+	mov $1, %ax
+	ret
+	
+check_a20__exit:
+	mov $0x0E, %ah
+	mov $'n, %al 
+	int $0x10
+	ret
+
+
+	//
+	// If A20 is not set, attempt to set it using various techniques
+	//
+set_a20:	
+	call check_a20
+	cmp $1, %ax
+	je a20_activated
+
+	mov $0x0E, %ah
+	mov $'B, %al 
+	int $0x10
+
+	// Technique 1:  Try to use BIOS support for setting A20
+	//
+	// The OSDev article (http://wiki.osdev.org/A20_Line) suggests
+	// the following steps:  (1) Query the BIOS for A20 support,
+	// (2) Query the BIOS to see if A20 is set, (3) attempt to set A20.
+	// For simplicity, we'll skip directly to step 3.
+
+set_a20_bios:
+	// Try to use int 15h to activate the A20 gate.
+	// See http://www.ctyme.com/intr/int-15.htm and
+        // http://wiki.osdev.org/A20_Line
+	mov     $0x2401, %ax            
+	int     $0x15
+
+	// There was an error calling int 15h (possibly because this
+	// function doesn't support setting A20).
+	jc      fast_a20
+
+	// If the call is successful, then %ah should be 0.
+	cmp     $0, %ah
+	jnz     fast_a20
+
+	// Check and see if A20 is now activated.
+	call check_a20
+	cmp $1, %ax
+	je a20_activated
+
+	
+	// Finally, try the "Fast A20" techique from
+	// http://wiki.osdev.org/A20_Line
+fast_a20:	
+	in $0x92, %al
+	test $2, %al
+	jnz a20_failed
+	or $2, %al
+	and  $0xFE, %al
+	out %al, $0x92
+
+	// Check and see if A20 is now activated.
+	call check_a20
+	cmp $1, %ax
+	je a20_activated
 	
 a20_failed:
-a20_ns:
-
-	///////////////////////////////////////////////////////////////////
-	//
-	// WARNING! This is not foolproof.
-	//
-	// More work should be done
-	//
-	/////////////////////////////////////////////////////////////////
-
-	in $0x92, %al
-	or $2, %al
-	out %al, $0x92 
-	jmp a20_activated
-	
-	
 	//
 	// Print message indicating the failure to set A20 and halt
 	//
@@ -186,7 +256,36 @@ a20_ns:
 
 a20_activated:                          // continue
 
+	mov $0x0E, %ah
+	mov $0x20, %al // ' '
+	int $0x10
+	
+	mov $0x41, %al // 'A'
+	int $0x10
 
+	mov $0x32, %al // '2'
+	int $0x10
+
+	mov $0x30, %al // '0'
+	int $0x10
+
+	mov $0x20, %al // ' '
+	int $0x10
+	
+	// Re-set all the segment registers back to 0
+	xor %ax, %ax
+	mov %ax, %ds
+	mov %ax, %es
+	mov %ax, %fs
+	mov %ax, %gs
+
+	mov %ax, %bp
+	mov %ax, %ss
+	mov %bp, %sp
+
+
+
+	
 /*******************************************************************
  *	
  * Enter protected mode
@@ -202,14 +301,14 @@ a20_activated:                          // continue
 		
 	/* Tell the processor where our Global Descriptor Table is in memory. */
 	lgdt gdt_descriptor
-		
+	
 	/* Set PE (Protection Enable) bit in CR0 (Control Register 0),
 	   effectively entering protected mode. */
 	cli
 	mov %cr0, %eax
 	orl $0x1, %eax
 	mov %eax, %cr0
-
+	
 	ljmp $CODE_SEG,  $protected_mode
 
 /*
@@ -276,7 +375,7 @@ gdt16_descriptor:
 
 .code32
 protected_mode:
-
+	
 	/* Setup the other segments.
 	   Those movs are mandatory because they update the descriptor cache:
 	   http://wiki.osdev.org/Descriptor_Cache */
@@ -292,6 +391,8 @@ protected_mode:
 
 	jmp 1f
 
+marker:	.asciz "End of Boot Sector Code"
+	
 /*******************************************************************
  *	
  * Run the OS.
@@ -301,6 +402,7 @@ protected_mode:
  ******************************************************************/
 .section .stage2
 1:
+	
 	call initialize_gdd
 
 	leal data_buffer, %eax
@@ -368,7 +470,7 @@ real:
 	mov $0x20, %al // ' '
 	int $0x10
 	
-
+	
 /*******************************************************************
  *	
  * Dump the data buffer to the boot device.

@@ -14,8 +14,8 @@ uint16_t make_vgaentry(char c, uint8_t color) {
 
 const size_t VGA_WIDTH = 80;
 const size_t VGA_HEIGHT = 25;
-static uint16_t* vgat_buffer = (uint16_t*)0x79797979;
-static char vgat_initialized='\0';
+static uint16_t* vgat_buffer = (uint16_t*)0x62414756; // VGAb
+static char vgat_initialized= '\0';
 
 static void vgat_initialize() {
   uint8_t terminal_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
@@ -37,7 +37,8 @@ static void vgat_initialize() {
 void vgat_initialize_section(vga_text_section_t* section, 
 				 size_t start_row, size_t bottom_row, 
 				 size_t start_column, size_t right_column) {
-  if (!vgat_initialized) { vgat_initialize();}
+
+  if (vgat_initialized == '\0') { vgat_initialize();} 
 
   section->top_row = start_row;
   section->bottom_row = bottom_row;
@@ -52,16 +53,23 @@ void vgat_initialize_section(vga_text_section_t* section,
 
 
 void vgat_initialize_full_screen(vga_text_section_t* section) {
-  if (!vgat_initialized) { vgat_initialize();}
+  if (vgat_initialized == '\0') { vgat_initialize();}
   vgat_initialize_section(section, 0, VGA_HEIGHT-1, 0, VGA_WIDTH-1);
 }
 
 void vgat_initialize_head_body(vga_text_section_t* head, 
 			       vga_text_section_t* body, 
 			       int lines_in_head) {
-  if (!vgat_initialized) { vgat_initialize();}
-  vgat_initialize_section(head, 0, lines_in_head-1, 0, VGA_WIDTH-1);
+  char orig = vgat_initialized;
+
+  if (vgat_initialized == '\0') { vgat_initialize();}
+
+  // Leave a blank line at the top for the startup/shutdown debugging info
+  vgat_initialize_section(head, 1, lines_in_head, 0, VGA_WIDTH-1);
   vgat_initialize_section(body, lines_in_head, VGA_HEIGHT-1, 0, VGA_WIDTH-1);
+
+  vgat_write_unsigned(body, (unsigned)orig, "<== orig\n");
+
 }
 
 

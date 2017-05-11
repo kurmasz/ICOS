@@ -66,6 +66,18 @@ SECTIONS
     *(.data)
   }
 
+   /* C compilers create a .bss section for staticly allocated
+   variables that are initialized to 0.  (These static variables can 
+   either have file scope or function scope.) */
+   .bss : ALIGN(1024)
+   {
+    LONG(0x20737362)
+    *(.bss*)
+    LONG(0x20737362)
+    }   
+
+
+
 
   /* Data for the disk dump.  To keep the OS as simple as possible,
   the only way to export data (other than writing to the screen) is to
@@ -98,6 +110,8 @@ SECTIONS
    multiple of 512 bytes. */
    __end = .;
    __end_align_4k = ALIGN(4k);
+
+
 
 
    /* This OS exports data by dumping a memory buffer back to the boot
