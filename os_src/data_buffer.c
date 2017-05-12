@@ -17,6 +17,9 @@ static char*    dd_buffer    = (char*) 0x57575757; // WWWW
 static unsigned dd_place     = 0x54515253;         // SQRT
 static unsigned dd_max_place = 0x41424142;         // ABAB
 
+char data_charat(size_t p) {
+  return dd_buffer[p];
+}
 
 void data_initialize(char *buffer_in) {
   dd_buffer = buffer_in;

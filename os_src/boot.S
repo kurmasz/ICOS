@@ -402,6 +402,9 @@ marker:	.asciz "End of Boot Sector Code"
  ******************************************************************/
 .section .stage2
 1:
+
+	push $0x4e495053
+
 	
 	call initialize_gdd
 
@@ -411,6 +414,8 @@ marker:	.asciz "End of Boot Sector Code"
 	popl %eax
 	
 	call KERNEL_MAIN
+
+	push $0x54515053
 	
 /*******************************************************************
  *	
@@ -453,12 +458,17 @@ real:
 	mov %ax, %es
 	mov %ax, %fs
 	mov %ax, %gs
-
 	mov %ax, %ss
 
-	mov $0x7bfc, %bp // $0x7c00 - $4
-	mov %bp, %sp 
-	
+	// Putting the stack pointer at 0x7c00 *should* be safe, but
+	// for some reason, it causes problems.
+	// Placing the stack pointer at 0x6000 is better; bt, I'm not
+	// sure if it's correct, or if I'm just getting lucky
+	//mov $0x7bfc, %sp 
+	mov $0x7000, %sp
+	mov %sp, %bp 
+
+
 	// Print debugging message indicating we are back in real mode.
 	mov $0x0E, %ah
 	mov $0x52, %al // 'R'
@@ -482,24 +492,25 @@ real:
 .set max_cylinder_num,       -12
 .set max_head_num,           -16
 .set num_drives,             -20
-.set total_sectors_written,   -24
+.set total_sectors_written,  -24
 
 	// Make room on the stack for some local variables.
 	add total_sectors_written, %sp  
 	movw $0, total_sectors_written(%bp)
-
 	
 	/////////////////////////////////////
 	//
 	// First, gather data about the drive
 	//
 	/////////////////////////////////////
+	mov $0, %ax
+	mov %ax, %es
+	mov %ax, %di
 	mov $0x08, %ah
 	mov initial_dl, %dl
-	// %es and %di should still be 0 at this point.
 	// (www.ctyme.com/intr/rb-0621.html recommends that %es:%di be 0:0)
 	int $0x13 
-
+	
 	// Save the returned values before we mess them up.  (These
 	// values probably need only be 16-bit; but, better safe than
 	// sorry.)	
@@ -861,6 +872,7 @@ num_drives_str:	        .asciz "Num drives: "
 	// purpose.)
 //max_buffer_sectors:	.word ((0x9fc00 - data_buffer) / 512)
 max_buffer_sectors:	 .word 0x4b2 // Actually +1 for loop purposes
+
 
 	
 .section .data2
