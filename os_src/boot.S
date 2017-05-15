@@ -460,12 +460,7 @@ real:
 	mov %ax, %gs
 	mov %ax, %ss
 
-	// Putting the stack pointer at 0x7c00 *should* be safe, but
-	// for some reason, it causes problems.
-	// Placing the stack pointer at 0x6000 is better; bt, I'm not
-	// sure if it's correct, or if I'm just getting lucky
-	//mov $0x7bfc, %sp 
-	mov $0x7000, %sp
+	mov $0x7c00, %sp
 	mov %sp, %bp 
 
 
@@ -480,6 +475,9 @@ real:
 	mov $0x20, %al // ' '
 	int $0x10
 	
+
+	// display the error code
+	mov %esp, %ecx
 	
 /*******************************************************************
  *	
@@ -495,7 +493,7 @@ real:
 .set total_sectors_written,  -24
 
 	// Make room on the stack for some local variables.
-	add total_sectors_written, %sp  
+	add $total_sectors_written, %sp	
 	movw $0, total_sectors_written(%bp)
 	
 	/////////////////////////////////////
@@ -504,11 +502,11 @@ real:
 	//
 	/////////////////////////////////////
 	mov $0, %ax
+	// (www.ctyme.com/intr/rb-0621.html recommends that %es:%di be 0:0)	
 	mov %ax, %es
 	mov %ax, %di
 	mov $0x08, %ah
 	mov initial_dl, %dl
-	// (www.ctyme.com/intr/rb-0621.html recommends that %es:%di be 0:0)
 	int $0x13 
 	
 	// Save the returned values before we mess them up.  (These
@@ -566,7 +564,7 @@ real:
 	mov $0x1, %cl                    // Target sector (indexed from 1)
 	mov $0x00, %dh		         // Disk head
 	mov initial_dl, %dl              // Drive head (saved earlier)
-
+	
 	//
 	// Write an entire track
 	//
@@ -582,6 +580,10 @@ write_track:
 	call print_word_hex
 	pop %ecx
 */
+		mov $0x0E, %ah
+	mov $'+, %al // '.'
+	int $0x10
+
 
 	
 	// Move the data pointer.  Remember, instead of moving the base
