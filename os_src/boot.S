@@ -462,6 +462,11 @@ p_mode16:
 
 real:
 
+	mov $0x040e, %eax
+	mov (%eax), %ecx
+
+	call print_word_hex
+
 	/* Sets %ax to 0.  (I'm not sure why we're not using mov.) */
 	xor %ax, %ax
 
