@@ -60,16 +60,11 @@ void vgat_initialize_full_screen(vga_text_section_t* section) {
 void vgat_initialize_head_body(vga_text_section_t* head, 
 			       vga_text_section_t* body, 
 			       int lines_in_head) {
-  char orig = vgat_initialized;
-
   if (vgat_initialized == '\0') { vgat_initialize();}
 
   // Leave a blank line at the top for the startup/shutdown debugging info
   vgat_initialize_section(head, 1, lines_in_head, 0, VGA_WIDTH-1);
   vgat_initialize_section(body, lines_in_head, VGA_HEIGHT-1, 0, VGA_WIDTH-1);
-
-  vgat_write_unsigned(body, (unsigned)orig, "<== orig\n");
-
 }
 
 

@@ -60,13 +60,28 @@ after_locals:
 	// test write back to boot device
 	mov $0x03, %ah
 	mov $1, %al
-	mov $end_of_s1, %bx
+	mov $marker, %bx
 	mov $0, %ch
-	mov $0xf, %cl
+	mov $0x1, %cl
 	mov $0x00, %dh
 	int $0x13
+	jc oops1
+	
+	mov $0x0E, %ah
+	mov $0x47, %al // 'G'
+	int $0x10
+	jmp .
+	
+oops1:
+	mov $0x0E, %ah
+	mov $0x42, %al // 'B'
+	int $0x10
+
+	jmp .
 */
 
+
+	
 /*******************************************************************
  *	
  * Stage 2 load (loading data beyond initial 512 bytes)
@@ -404,8 +419,6 @@ marker:	.asciz "End of Boot Sector Code"
 1:
 
 	push $0x4e495053
-
-	
 	call initialize_gdd
 
 	leal data_buffer, %eax
@@ -447,7 +460,7 @@ p_mode16:
 	
 	ljmp $0, $real
 
-real:	
+real:
 
 	/* Sets %ax to 0.  (I'm not sure why we're not using mov.) */
 	xor %ax, %ax
@@ -474,11 +487,8 @@ real:
 
 	mov $0x20, %al // ' '
 	int $0x10
-	
 
-	// display the error code
-	mov %esp, %ecx
-	
+		
 /*******************************************************************
  *	
  * Dump the data buffer to the boot device.
@@ -580,9 +590,12 @@ write_track:
 	call print_word_hex
 	pop %ecx
 */
-		mov $0x0E, %ah
-	mov $'+, %al // '.'
+
+	/*
+	mov $0x0E, %ah
+	mov $'+, %al
 	int $0x10
+	*/
 
 
 	

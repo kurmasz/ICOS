@@ -7,7 +7,7 @@
    data we place here is accessible in real mode for dumping back to
    the boot disk.  Staying below this address will also prevent the
    data buffer from running into the VGA text buffer. */
-static const char* max_address = (char*)0x9fc00;
+static const char* max_address = (char*)(0x9fc00 - 4*1024);
 
 
 /* These values are initialized so (1) They are placed in the .data
@@ -16,6 +16,15 @@ static const char* max_address = (char*)0x9fc00;
 static char*    dd_buffer    = (char*) 0x57575757; // WWWW
 static unsigned dd_place     = 0x54515253;         // SQRT
 static unsigned dd_max_place = 0x41424142;         // ABAB
+
+
+// Used for debugging.  (Every time I think I don't need it anymore
+// and delete it, another bug pops up.)
+static char* last;
+char* last_loc() {
+  return last;
+}
+
 
 char data_charat(size_t p) {
   return dd_buffer[p];
@@ -37,6 +46,7 @@ void data_initialize(char *buffer_in) {
 
 void data_putchar(char c) {
   if (dd_place < dd_max_place) {
+    last = dd_buffer + dd_place;
     dd_buffer[dd_place++] = c;
   } else {
     dd_buffer[dd_max_place + 1] = 'F';
@@ -44,6 +54,7 @@ void data_putchar(char c) {
     dd_buffer[dd_max_place + 3] = 'l';
     dd_buffer[dd_max_place + 4] = 'l';
     dd_buffer[dd_max_place + 5] = '\0';
+    last = dd_buffer + dd_max_place + 5;
   }
 }
 
