@@ -123,7 +123,17 @@ oops1:
 	mov $0x20, %al // ' '
 	int $0x10
 
- 
+
+	//
+	// !!! Need to load more sectors in some cases!
+	// 
+	
+	jmp 1f
+marker:	.asciz "End of Boot Sector"
+.section .stage2
+1:	
+
+	
 /*******************************************************************
  *	
  * enable A20
@@ -404,10 +414,6 @@ protected_mode:
 	mov $0X7000, %ebp   // Place the stack below the code
 	mov %ebp, %esp	
 
-	jmp 1f
-
-marker:	.asciz "End of Boot Sector Code"
-	
 /*******************************************************************
  *	
  * Run the OS.
@@ -415,8 +421,6 @@ marker:	.asciz "End of Boot Sector Code"
  * Now that we are in protected mode, we can run the OS.
  *
  ******************************************************************/
-.section .stage2
-1:
 
 	push $0x4e495053
 	call initialize_gdd

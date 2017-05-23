@@ -28,7 +28,7 @@ void hello_world() {
   vgat_initialize_head_body(&head, &body, 5);
 
   // This string should appear with the vowels capitalized.
-  char hw[] = "Hello, World!\n";
+  char hw[] = "Hello, World! (17:32)\n";
   upcase_vowels(hw);
   vgat_write_string(&head, hw);
 

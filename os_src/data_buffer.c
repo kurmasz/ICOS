@@ -4,11 +4,11 @@
 /* According to wiki.osdev.org/Memory_Map_(x86), the Extended BIOS
    Data Area (EBDA) begins somewhere around 0x9fc00.  The correct way
    to find the beginning of the EBDA is to access the word at address
-   0x040e.  The smallest value I've seen thus far is 0x9d800, so we'll
+   0x040e.  The smallest value I've seen thus far is 0x91800, so we'll
    use that for now.
 */
    // TODO:  Look up the correct value for a given machine.
-static const char* max_address = (char*)(0x9d800);
+static const char* max_address = (char*)(0x91800);
 
 
 /* These values are initialized so (1) They are placed in the .data
