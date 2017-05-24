@@ -527,6 +527,7 @@ real:
 	mov $0x08, %ah
 	mov initial_dl, %dl
 	int $0x13 
+	jc query_error
 	
 	// Save the returned values before we mess them up.  (These
 	// values probably need only be 16-bit; but, better safe than
@@ -552,7 +553,6 @@ real:
 
 	// isolate num drives
 	andw $0x00ff, num_drives(%bp)
-	
 
 	/////////////////////////////////////
 	//
@@ -591,6 +591,19 @@ write_track:
 	mov $0x03, %ah     // BIOS command to write to disk
 	mov $1, %al        // Write one sector at a time (for simplicity)
 	int $0x13
+	jnc continue1
+
+	// Sometimes a BIOS disk write will fail.  Sources suggest
+	// trying three times before giving up.  (For now, we'll give up
+	// after two attempts.)
+	mov $0x0E, %ah
+	mov $'!, %al
+	int $0x10
+
+
+	mov $0x03, %ah     // BIOS command to write to disk
+	mov $1, %al        // Write one sector at a time (for simplicity)
+	int $0x13
 	jc write_error
 
 	/*
@@ -600,13 +613,7 @@ write_track:
 	pop %ecx
 */
 
-	/*
-	mov $0x0E, %ah
-	mov $'+, %al
-	int $0x10
-	*/
-
-
+continue1:	
 	
 	// Move the data pointer.  Remember, instead of moving the base
 	// address, we move the segment (%es) only.  Advancing the segment
@@ -670,6 +677,18 @@ write_done:
 	jmp os_halt
 
 
+query_error:
+	mov $0x0E, %ah
+	mov $'q, %al
+	int $0x10
+
+	mov $'r, %al
+	int $0x10
+
+	mov $'y, %al
+	int $0x10
+
+	
 write_error:
 	// Print a debug message that we are about to halt.
 	mov $0x0E, %ah
@@ -895,7 +914,7 @@ num_drives_str:	        .asciz "Num drives: "
 	// "useable" RAM (i.e., RAM that isn't reserved for another
 	// purpose.)
 //max_buffer_sectors:	.word ((0x9fc00 - data_buffer) / 512)
-max_buffer_sectors:	 .word 0x4b2 // Actually +1 for loop purposes
+max_buffer_sectors:	 .word 0x43e // Actually +1 for loop purposes
 
 
 	

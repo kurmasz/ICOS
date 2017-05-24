@@ -43,7 +43,8 @@ void hello_world() {
     }
   }
 
-  vgat_write_string(&body, "\nData Buffer is full.");  
+  vgat_write_string(&body, "\nData Buffer is full (");  
+  vgat_write_unsigned(&body, data_size(), ").\n");  
   vgat_write_string(&head, " Done!");  
   vgat_write_string(&head, " \n But I want the text to be a bit longer.");  
 }
