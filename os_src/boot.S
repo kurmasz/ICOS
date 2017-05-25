@@ -1,37 +1,59 @@
-.code16
-.section .boot
+
+	// Tells gcc to produce 16-bit code (because an x86 machine boots up
+	// in 16-bit "real" mode).
+.code16    
+
 /*******************************************************************
  *	
- * Initial set up (including the stack)
+ * Master Boot Record
  *
- ******************************************************************/
+ * BIOS loads only the first 512-byte sector of the boot disk.
+ *(This is called the MBR --- Master Boot Record.)
+ *******************************************************************/
 
+	// By labling this code as ".section .boot", we can tell
+	// the linker script to place it at the beginning of the
+	// disk image (i.e., in the MBR.)
+.section .boot
+
+
+	/*******************************************************************
+	*	
+	* Initial set up (including the stack)
+	*
+	******************************************************************/
+	
 	// disable interrupts
 	cli
-	
-	/* Set %cs to 0. (If I understand correctly, in real mode, the
-	ljmp instruction sets both %cs (the code segment register) as
-	well as the %eip (the instruction pointer). $1f is the next
-	label with a value of "1", which appens to be on the next
-	line. Thus, this instrucion doesn't actually change the flow
-	of the program, but assures that %cs is correctly set to the
-	segment containing the code we are currently running */
+
+	/*
+	 * Set %cs to 0.
+	 *
+	 * If I understand correctly, in real mode, the
+	 * ljmp instruction sets both %cs (the code segment register)
+	 * as well as %eip (the instruction pointer). $1f is the
+next label with a value of "1", which happens to be on the
+next line. Thus, this instrucion doesn't actually change 
+the flow of the program, but assures that %cs is correctly
+set to the segment containing the code we are currently
+running */
+
 	ljmp $0, $1f
 1:
 
 	/* Sets %ax to 0.  (I'm not sure why we're not using mov.) */
 	xor %ax, %ax
 
-	/* Set all the segment registers to 0, just so we know for sure
-	what's going on. */
+	/* Set all the segment registers to 0.*/
 	mov %ax, %ds
 	mov %ax, %es
 	mov %ax, %fs
 	mov %ax, %gs
 
-	mov %ax, %bp
+	/* Now set the stack and frame to 0:0x7c00 */
 	mov %ax, %ss
-	mov %bp, %sp
+	mov $0x7c00, %sp
+	mov %sp, %bp
 
 	
 	/* The BIOS sets %dl to the value of the boot device.  We
@@ -46,14 +68,300 @@ after_locals:
 
 	// Write a short message to help with debugging
 	mov $0x0E, %ah
-	mov $0x48, %al // 'H'
+	mov $'H, %al 
 	int $0x10
 
-	mov $0x69, %al // 'i'
+	mov $'i, %al 
+	int $0x10
+
+	mov $0x20, %al // ' ' (space)
+	int $0x10
+
+	/*******************************************************************
+	*	
+	* Stage 2 load the rest of the boot image into memory.
+	*
+	* BIOS loaded the first sector into memory address 0x7c00.
+	* This code loads the remaining sectors into the successive memory
+	* addresses (i.e., beginning at 0x7c00 + 512).
+	*
+	******************************************************************/
+
+	// To properly load multiple sectors from a disk using BIOS
+	// calls, we need to know the disk's "geometry" (i.e., the
+	// number of cylinders, heads, and tracks on the disk.
+	//
+	// We will store this geometry data (as well as a few other
+	// helpful variables) on the stack.
+	// The .set directives below assign each needed datum
+	// an offset from a frame pointer (a location on the stack near the
+	// local variables).
+
+	// TODO:  Change the data size from 4 bytes to 2, since that is
+	// all we need.
+	
+	.set drive_type,              -4
+	.set max_sector_num,          -8
+	.set max_cylinder_num,       -12
+	.set max_head_num,           -16
+	.set num_drives,             -20
+	.set total_sectors_written,  -24
+
+	// Set the frame pointer (%bp) to the current top of the stack.
+	// The frame pointer will "point" to the beginning of the
+	// local variables.
+	mov %sp, %bp
+
+	
+	// Make room on the stack for the local variables.
+	add $total_sectors_written, %sp	
+	movw $0, total_sectors_written(%bp)
+	// The top of the stack is now after the local variables.  In
+	// other words, the local variables are now safely on the stack.
+
+	
+	////////////////////////////////////////////////////////////
+	//
+	// Gather data about the drive
+	//
+	// (In other words, query BIOS for the drive geometry.)
+	//
+	////////////////////////////////////////////////////////////
+
+	// (www.ctyme.com/intr/rb-0621.html recommends that %es:%di be 0:0)
+	// x86 doesn't have a machine instruction to move a literal to a
+	// segment register.  Thus, we must set %ax to 0, then move %ax into
+	// %es and %di
+	mov $0, %ax
+	mov %ax, %es
+	mov %ax, %di
+	mov $0x08, %ah      // 0x08h is the code for obtaining drive geometery
+	mov initial_dl, %dl
+	int $0x13
+
+	// The call to int 13h sets the carry flag if there is an error
+	// In the case of an error, the code at read_query_error prints
+	// an error message and halts.
+	jc read_query_error  
+	
+	// Save the returned values before we mess them up.  
+	mov %bx, drive_type(%bp)       // Drive type
+	mov %cx, max_sector_num(%bp)   // max sector number
+	mov %cx, max_cylinder_num(%bp) // max cylinder number
+	mov %dx, max_head_num(%bp)     // max head number
+	mov %dx, num_drives(%bp)       // num drives
+	
+	// isolate max sector number
+	andw $0x003F, max_sector_num(%bp) // max sector number is bits 0-5 only
+
+	// isolate max cylinder number
+	shrw $8, max_cylinder_num(%bp)       // move %ch into low 8 bits
+	andw $0x00FF, max_cylinder_num(%bp)  // remove other bits
+	shlw $2, %cx	      // move %cl bits 6 and 7 to bits 8 and 9
+	andw $0x0300, %cx     // remove extra bits.
+	orw %cx, max_cylinder_num(%bp)
+
+	// isolate max head number
+	shrw $8, max_head_num(%bp)
+
+	// isolate num drives
+	andw $0x00ff, num_drives(%bp)
+
+	mov $0x0E, %ah
+	mov $'H, %al 
+	int $0x10
+
+	mov $'j, %al 
+	int $0x10
+
+	mov $0x20, %al // ' ' (space)
+	int $0x10
+	
+	//////////////////////////////////////////////////////
+	//
+	// Now, read the rest of the first track
+	//
+	//////////////////////////////////////////////////////
+
+
+	// The target address is 0x7c00 + 512 = 0x7e00.  Using segments,
+	// that address would be 0000:7e00; however, because we will
+	// probably be writing beyond segment 0, we'll "re-phrase" the target
+	// address as 07c0:0200.  (512 = 0x200)
+	mov $0x7c0, %ax
+	mov %ax, %es
+	mov $512, %bx
+	
+	// %al is number of sectors to load.  We want to load one
+	// sector less than a full track.  (Because BIOS already loaded
+	// the first sector for us --- the MBR.)
+	mov max_sector_num(%bp), %al
+	add $-1, %al
+
+	// 0x02 is the code to read sectors
+	mov $0x02, %ah        
+
+	// Begin reading from sector 2.  (The BIOS already read sector 1.)
+	mov $0x2, %cl
+        mov $0x0, %ch       // Read from cylinder 0
+	mov $0x00, %dh      // Read from head 1
+	mov initial_dl, %dl
+
+	int $0x13
+	jc sector_read_error  // Report error and halt
+	
+	//
+	// Check if more sectors need to be read.
+	//
+
+	mov max_sector_num(%bp), %ax
+	mov $__stage2_nsectors, %cx
+	// GAS syntax looks "backwards" when doing comparisons.
+	// cmp op2, op1 checks whether op1 < op2.
+	// Thus, the line below is really asking whether %cx < %ax
+	cmp %ax, %cx                     
+	jle stage2_done
+
+	mov $0x0E, %ah
+	mov $'B, %al 
+	int $0x10
+	
+	mov $'i, %al 
+	int $0x10
+	
+	mov $'g, %al
 	int $0x10
 
 	mov $0x20, %al // ' '
 	int $0x10
+
+	jmp .
+
+	//
+	// Read more sectors, if necessary.
+	//
+	
+	// When using BIOS to read data, destination address goes in %es:%bx.
+	//
+	// Incrementing the segment (i.e., %es) by 1 increases the
+	// physical memory address.  Because each sector is 512 bytes ---
+	// a multiple of 16 --- it is sufficient to set %bx to 0 and
+	// increment %es only.
+	//
+	// We just loaded an entire track, 512*max_sector_num bytes.
+	// To point at the new destination, we can increment %ex by
+	// (512*max_sector_num)/16 = 32*max_sector_num.  An easy way to
+	// multiply by 32 is to shift left 5.
+
+	mov $0, %bx
+	jmp read_track_done
+	
+	
+	mov $0, %ch                      // Cylinder number
+	mov $0x1, %cl                    // Target sector (indexed from 1)
+	mov initial_dl, %dl              // Drive head (saved earlier)
+
+	// The initial read was to disk head 0, so we set dh to 1.
+	mov $0x1, %dh		         // Disk head
+
+
+	//
+	// Read an entire track
+	//
+read_track:	
+	mov $0x02, %ah                  // BIOS command to read disk
+	mov max_sector_num(%bp), %al    // Read entire track
+	int $0x13
+	jnc continue1r
+
+	// Sometimes a BIOS disk read will fail.  Sources suggest
+	// trying three times before giving up.  (For now, we'll give up
+	// after two attempts.)
+	mov $0x0E, %ah
+	mov $'!, %al
+	int $0x10
+
+
+	mov $0x02, %ah                // BIOS command to read disk
+	mov max_sector_num(%bp), %al  // Read entire track
+	int $0x13
+	jc sector_read_error
+
+	/*
+	push %ecx
+	mov total_sectors_written, %ecx
+	call print_word_hex
+	pop %ecx
+*/
+
+continue1r:	
+	
+	// Move the data pointer.  Remember, instead of moving the base
+	// address, we move the segment (%es) only.  Advancing the segment
+	// by 1 moves 16 bytes forward in memory.  Thus, to point at the
+	// next 512 byte segment, we advance %es by 512/16 = 32.
+	mov %es, %bx
+	add $32, %bx
+	mov %bx, %es
+	mov $0, %bx
+
+	mov max_sector_num(%bp), %ax
+	add %ax, total_sectors_written(%bp)
+
+	// We are completely done writing when we've written
+	// max_buffer_sectors sectors
+	cmp __stage2_nsectors, %ax
+	jge stage2_done
+
+	
+	// If we just wrote the max_sector_num,
+	// then we need to move to a new track
+	cmp max_sector_num(%bp), %cl
+	je read_track_done
+	
+	add $1, %cl       // Increment the sector number
+	
+	jmp read_track   // go back and read the next track
+
+read_track_done:
+
+	mov $0x0E, %ah
+	mov $0x2e, %al // '.'
+	int $0x10
+
+	/* For debugging
+	push %ecx
+	mov total_sectors_written(%bp), %ecx
+	call print_word_hex
+	pop %ecx
+	*/
+
+	// Update destination pointer
+	mov $0, %bx
+	mov max_sector_num(%bp), %ax
+	shl $5, %ax
+	mov %es, %cx
+	add %ax, %cx
+	mov %cx, %es
+	
+	mov $1, %cl             // Reset to sector 1.
+
+	// Check whether we are using the last head
+	cmp max_head_num(%bp), %dh
+	je read_next_cylinder
+
+	// If we aren't using the last head, increment
+	// and move on
+	add $1, %dh             // move to the next head.
+	jmp write_track
+
+	// Otherwise, re-set head to 0 and increment the cylinder number
+read_next_cylinder:	
+
+	mov $0, %dh
+	add $1, %ch // Move to the next cylinder
+	jmp read_track
+		
 	
 /*
 	// (Left over from debugging)
@@ -80,7 +388,7 @@ oops1:
 	jmp .
 */
 
-
+#if 0
 	
 /*******************************************************************
  *	
@@ -114,24 +422,142 @@ oops1:
 	//
 	
 	mov $0x0E, %ah
-	mov $0x53, %al // 'S'
+	mov $'S, %al 
 	int $0x10
 
-	mov $0x32, %al // '2'
+	mov $'2, %al 
+	int $0x10
+
+	//
+	// !!! Need to load more sectors in some cases!
+	// 
+#endif
+
+stage2_done:
+
+	// Status message indicating that we have successfully loaded
+	// remaining sectors from boot image.
+	mov $0x0E, %ah
+	mov $'S, %al 
+	int $0x10
+
+	mov $'2, %al
+	int $0x10
+
+	
+	// At this point, we believe we have loaded the rest of the code
+	// and placed in memory beginning 512 bytes after 0x7c00.
+	// The linker script specifies that the code in .section .stage2
+	// be placed exactly 512 bytes from the beginning of the image.
+	// The code above loads this part of the image beginning at byte
+	// 0x7c00 + 512.  Thus, label 1 should be the first instruction
+	// in the newly loaded memory.  The jmp instruction below
+	// jumps over the "leftover" space in the boot sector to the
+	// newly loaded code.
+	//
+	jmp 1f
+
+/*****************************************************************
+*
+* Boot sector "procedures"
+*
+* The code below are "procedures" called by the MBR code
+* They are placed here at the end of the boot sector to improve
+* readability.  "Procedures" is in quotes because some of the
+* code below is not a true procedure:  We jump to it instead
+* of using call/return.
+*
+******************************************************************/
+
+/////////////////////////////////////////////////////////////////	
+//
+// read_query_error
+//	
+// called if the BIOS call to obtain the disk geometry fails.
+//
+/////////////////////////////////////////////////////////////////	
+read_query_error:
+	mov $0x0E, %ah
+	mov $'q, %al
+	int $0x10
+
+	mov $'e, %al
+	int $0x10
+
+	mov $'r, %al
+	int $0x10
+
+	mov $'r, %al
+	int $0x10
+
+	jmp .
+
+/////////////////////////////////////////////////////////////////	
+//
+// sector_read_error:
+//
+// called if the BIOS call to obtain the disk geometry fails.
+//
+/////////////////////////////////////////////////////////////////	
+sector_read_error:
+	// Print a debug message that we are about to halt.
+	mov $0x0E, %ah
+	mov $0x45, %al // 'E'
+	int $0x10
+	
+	mov $0x72, %al // 'r'
+	int $0x10
+	
+	mov $0x72, %al // 'r'
 	int $0x10
 
 	mov $0x20, %al // ' '
 	int $0x10
 
-
-	//
-	// !!! Need to load more sectors in some cases!
-	// 
+	jmp .
+	// TODO:  Ideally we would print the error code;
+	// but, I'm not sure if there is enough room
+	// for print_word_hex in the boot sector.
 	
-	jmp 1f
+	// display the error code
+	//mov %eax, %ecx
+	//call print_word_hex
+
+
+	
+
+// (This "marker" string is just for debugging.  It makes it
+// easy to verify that our boot sector code actually fits in the
+// boot sector.)
 marker:	.asciz "End of Boot Sector"
+
+
+/*******************************************************************
+ *	
+ * Stage 2 
+ *
+ * The part of the boot image after the MBR.
+ *******************************************************************/
+
+	
 .section .stage2
-1:	
+1:
+	// The "s2" marker is just to help with debugging.
+	// The jmp instruction simply jumps over it.
+	jmp 2f
+	s2_marker: .asciz "Start of stage 2"
+2:	
+
+	// Status message indicating that we are now successfully
+	// executing "stage2" code -- code loaded by the code
+	// in the MBR.
+
+	mov $0x0E, %ah
+	mov $'+, %al 
+	int $0x10
+
+	mov $0x20, %al // ' '
+	int $0x10
 
 	
 /*******************************************************************
@@ -307,8 +733,6 @@ a20_activated:                          // continue
 	mov %ax, %bp
 	mov %ax, %ss
 	mov %bp, %sp
-
-
 
 	
 /*******************************************************************

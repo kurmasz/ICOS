@@ -101,6 +101,16 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
         # generate the assembly file, in case we want to look at it later.
 	$(elfCC) $(CFLAGS) -S $< -o $(@:.o=.s) -I $(OS_SRC) 
 
+
+############################################################################
+#
+# Test support
+#
+###########################################################################
+
+$(USR_SRC)/ag_large_code%.c: test/generate_large_code.rb
+	ruby test/generate_large_code.rb $* > $@
+
 ############################################################################
 #
 # Bootable image
@@ -110,6 +120,9 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
 %.img: $(BOOT_OBJ)/%.o $(os_objs) $(usr_objs) $(OS_OBJ)/ic_util_asm.o | linker.ld setup
 	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map.txt
 
+
+large_code_100.img: obj/usr/ag_large_code100.o $(BOOT_OBJ)/large_code_100.o $(os_objs) $(usr_objs) $(OS_OBJ)/ic_util_asm.o | linker.ld setup
+	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map.txt
 
 # Produces a version of the OS that can run as a normal user process.
 # Potentially helpful for debugging.

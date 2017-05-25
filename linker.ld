@@ -123,11 +123,18 @@ SECTIONS
       section below is exactly 1MB, we know the resulting image will
       be a multiple of 512 bytes long.*/
 	
-  .data3 : ALIGN(1024)
-  {
-    LONG(0x41544144)   /* Mark the section in the image that will be used to dump data. */
-    . = 0x100000 - 4;  /* Make sure that the disk image is a multiple of 512 bytes.  */
-    LONG(0x444E4500);  /* Mark the end of the disk image. */
+  .data3 : ALIGN(1024) { 
+
+
+    /* Places 'DATA' in the image to mark where
+       in memory the data will be dumped. */
+    LONG(0x41544144)   
+
+    /* Make sure that the disk image is a multiple of 512 bytes.  */   
+    . = 0x100000 - 4;  
+
+    /* Mark the end of the disk image with 'END'. */
+    LONG(0x444E4500);  
   }
 }
 
