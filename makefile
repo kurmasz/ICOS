@@ -20,7 +20,8 @@
 # make considers the .o files "intermediate" and autmoatically deletes them.
 # At the moment, the compiliation process is fast enough that the repeated 
 # rebuilds aren't a problem.  If the rebuilding becomes annoying, see this 
-# article:  https://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
+# article:  
+# https://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 #
 ###############################################################################
 
@@ -40,9 +41,7 @@ usr_sources = $(wildcard $(USR_SRC)/*.c)    # all *.c files in the usr_src dir
 os_objs = $(subst $(OS_SRC), $(OS_OBJ), $(os_sources:.c=.o))
 usr_objs = $(subst $(USR_SRC), $(USR_OBJ), $(usr_sources:.c=.o))
 
-
 all: setup hello_world.img
-
 
 #
 # Make the obj directories, if they don't already exist.
@@ -62,6 +61,7 @@ setup: $(OS_OBJ) $(USR_OBJ) $(BOOT_OBJ)
 
 clean:
 	rm -f $(OS_OBJ)/*.[os] $(USR_OBJ)/*.[os] $(BOOT_OBJ)/*.[os] 
+	rm -f $(USR_SRC)/ag*.c
 	rm -f *.img *.debug
 
 #############################################################################
@@ -104,15 +104,6 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
 
 ############################################################################
 #
-# Test support
-#
-###########################################################################
-
-$(USR_SRC)/ag_large_code%.c: test/generate_large_code.rb
-	ruby test/generate_large_code.rb $* > $@
-
-############################################################################
-#
 # Bootable image
 #
 ###########################################################################
@@ -121,8 +112,11 @@ $(USR_SRC)/ag_large_code%.c: test/generate_large_code.rb
 	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map.txt
 
 
-large_code_100.img: obj/usr/ag_large_code100.o $(BOOT_OBJ)/large_code_100.o $(os_objs) $(usr_objs) $(OS_OBJ)/ic_util_asm.o | linker.ld setup
-	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map.txt
+############################################################################
+#
+# Debug (user space)
+#
+###########################################################################
 
 # Produces a version of the OS that can run as a normal user process.
 # Potentially helpful for debugging.
@@ -132,3 +126,57 @@ large_code_100.img: obj/usr/ag_large_code100.o $(BOOT_OBJ)/large_code_100.o $(os
 # unsigned integers and print them out
 %.debug: $(os_sources) $(usr_sources) $(OS_SRC)/ic_util_asm.s | $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) setup
 	gcc $(CFLAGS) -m32 -DDEBUG -g -DKERNEL_MAIN=$* -o $@ $^
+
+
+
+
+############################################################################
+#
+# Large Code Test
+#
+# The rules here build an image that can be used to test ICOS's boot loader
+# Specifically, using larger numbers verifies that the boot loader 
+# correctly loads calls when the code takes up more than one track.
+#
+# For the most part, the rules below are very similar to the general 
+# rules above; however, I didn't want the large auto-generated files
+# to mess up or complicate the general student-centered build process.
+# Yes, there are some "DRY" violations here, but they are done to keep 
+# the makefile above simpler.
+#
+#
+###########################################################################
+
+TEST=test
+LC_TEST=$(TEST)/tmp
+
+test_clean:
+	rm -rf $(LC_TEST)/*
+
+#
+# Uses a ruby script to generate a lot of C code.
+#
+$(LC_TEST)/ag_large_code_%.c: $(TEST)/generate_large_code.rb
+	ruby $(TEST)/generate_large_code.rb $* > $@
+
+$(LC_TEST)/%.o: $(LC_TEST)/%.c
+	$(elfCC) $(CFLAGS) -c $< -o $@ -O2
+
+$(LC_TEST)/%.o: $(TEST)/%.c
+	$(elfCC) $(CFLAGS) -c $< -o $@ -O2
+
+
+$(LC_TEST)/large_code_test_boot.o: $(OS_SRC)/boot.S
+	$(elfCC) $(CFLAGS) -DKERNEL_MAIN=large_code_test -c $< -o $@ -O2
+
+# This rule only includes specific objects in usr_objs, because we
+# don't want other user code (or previously augo-generated large files)
+# to influence the image size.
+large_code_test_%.img: $(LC_TEST)/ag_large_code_%.o $(LC_TEST)/large_code_test.o  $(LC_TEST)/large_code_test_boot.o$(os_objs) $(OS_OBJ)/ic_util_asm.o | linker.ld setup
+	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map_lc.txt
+
+
+
+
+
+
