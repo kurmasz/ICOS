@@ -1,6 +1,6 @@
 
-	// Tells gcc to produce 16-bit code (because an x86 machine boots up
-	// in 16-bit "real" mode).
+	## Tells gcc to produce 16-bit code (because an x86 machine boots up
+	## in 16-bit "real" mode).
 .code16    
 
 /*******************************************************************
@@ -8,35 +8,36 @@
  * Master Boot Record
  *
  * BIOS loads only the first 512-byte sector of the boot disk.
- *(This is called the MBR --- Master Boot Record.)
+ * (This is called the MBR --- Master Boot Record.)
  *******************************************************************/
 
-	// By labling this code as ".section .boot", we can tell
-	// the linker script to place it at the beginning of the
-	// disk image (i.e., in the MBR.)
+	##  By labeling this code as ".section .boot", we can tell
+	## (Why is this line no longer working) the linker script to
+	## place it at the beginning of the disk image (i.e., in the
+	## MBR).
 .section .boot
 
-
-	/*******************************************************************
-	*	
-	* Initial set up (including the stack)
-	*
-	******************************************************************/
 	
-	// disable interrupts
+	/*******************************************************************
+	 *	
+	 * Initialass set up (including the stack)
+	 *
+	 ******************************************************************/
+	
+	## disable interrupts
 	cli
 
-	/*
-	 * Set %cs to 0.
-	 *
-	 * If I understand correctly, in real mode, the
-	 * ljmp instruction sets both %cs (the code segment register)
-	 * as well as %eip (the instruction pointer). $1f is the
-next label with a value of "1", which happens to be on the
-next line. Thus, this instrucion doesn't actually change 
-the flow of the program, but assures that %cs is correctly
-set to the segment containing the code we are currently
-running */
+	##	
+	## Set %cs to 0.
+	##
+	## If I understand correctly, in real mode, the ljmp
+	## instruction sets both %cs (the code segment register) as
+	## well as %eip (the instruction pointer). $1f is the next
+	## label with a value of "1", which happens to be on the next
+	## line. Thus, this instrucion doesn't actually change the
+	## flow of the program, but assures that %cs is correctly set
+	## to the segment containing the code we are currently
+	## running.
 
 	ljmp $0, $1f
 1:
@@ -105,7 +106,7 @@ after_locals:
 	.set max_cylinder_num,       -12
 	.set max_head_num,           -16
 	.set num_drives,             -20
-	.set total_sectors_written,  -24
+	.set total_sectors_read,     -24
 
 	// Set the frame pointer (%bp) to the current top of the stack.
 	// The frame pointer will "point" to the beginning of the
@@ -114,8 +115,8 @@ after_locals:
 
 	
 	// Make room on the stack for the local variables.
-	add $total_sectors_written, %sp	
-	movw $0, total_sectors_written(%bp)
+	add $total_sectors_read, %sp	
+	movw $0, total_sectors_read(%bp)
 	// The top of the stack is now after the local variables.  In
 	// other words, the local variables are now safely on the stack.
 
@@ -198,6 +199,8 @@ after_locals:
 	mov max_sector_num(%bp), %al
 	add $-1, %al
 
+
+do_read:	
 	// 0x02 is the code to read sectors
 	mov $0x02, %ah        
 
@@ -209,6 +212,9 @@ after_locals:
 
 	int $0x13
 	jc sector_read_error  // Report error and halt
+
+
+	add %al, num_sectors_read(%bp)
 	
 	//
 	// Check if more sectors need to be read.
@@ -216,12 +222,16 @@ after_locals:
 
 	mov max_sector_num(%bp), %ax
 	mov $__stage2_nsectors, %cx
-	// GAS syntax looks "backwards" when doing comparisons.
+	// GAS/AT&T syntax looks "backwards" when doing comparisons.
 	// cmp op2, op1 checks whether op1 < op2.
 	// Thus, the line below is really asking whether %cx < %ax
 	cmp %ax, %cx                     
 	jle stage2_done
 
+//
+	// TODO:  Increment %es and set %dl to #tracks
+	// and go back to do_read
+	
 	mov $0x0E, %ah
 	mov $'B, %al 
 	int $0x10
