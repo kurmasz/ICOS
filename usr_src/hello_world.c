@@ -29,7 +29,7 @@ void hello_world() {
 
   // This string should appear with the vowels capitalized.
   // The string is 16 characters long so it looks nice in the data dump.)
-  char hw[] = "Hello, Wxrld!!!\n"; 
+  char hw[] = "Hello, World!!!\n"; 
   upcase_vowels(hw);
   vgat_write_string(&head, hw);
   data_write_string(hw);

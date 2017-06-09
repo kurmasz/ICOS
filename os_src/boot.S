@@ -56,17 +56,13 @@
 	mov %sp, %bp
 
 	
-	/* The BIOS sets %dl to the value of the boot device.  We
-	store it so we can use it later to load sectors beyond the
-	MBR. */
-	mov %dl, initial_dl
-	jmp after_locals  // jump over the byte used to store %dl
-initial_dl: .byte 0
-after_locals:
+	## The BIOS sets %dl to the value of the boot device.  We
+	## store it so we can use it later to load sectors beyond the
+	## MBR.
 	
-	mov initial_dl, %dl
+	mov %dl, initial_dl
 
-	// Write a short message to help with debugging
+	## Write a short message to help with debugging
 	mov $0x0E, %ah
 	mov $'H, %al 
 	int $0x10
@@ -533,12 +529,23 @@ sector_read_error:
 	//call print_word_hex<
 
 
-	
-
-// (This "marker" string is just for debugging.  It makes it
-// easy to verify that our boot sector code actually fits in the
-// boot sector.)
+	## A safe place to store the id of the boot device (which is
+	## automatically stored in %dl upon booting).
+initial_dl: .byte 0
+		
+	##  (This "marker" string is just for debugging.  It makes it
+	##  easy to verify that our boot sector code actually fits in the
+	##  boot sector.)
 marker:	.asciz "End of Boot Sector"
+
+
+	## The linker script places the instruction "jmp ." at memory
+	## location 0x7dfc.  Jumping to that location will effectively
+	## halt the CPU by entering an infinite loop. By placing this
+	## final infinite loop at a known location, we can write a
+	## bochs debug script that will automatically run the OS. (The
+	## script set a breakpoint at 0x7dfc, runs the OS, then exits
+	## when it hits the breakpoint.)
 halt:
 	jmp 0x7dfc
 
