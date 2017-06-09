@@ -11,16 +11,15 @@
  * (This is called the MBR --- Master Boot Record.)
  *******************************************************************/
 
-	##  By labeling this code as ".section .boot", we can tell
-	## (Why is this line no longer working) the linker script to
-	## place it at the beginning of the disk image (i.e., in the
-	## MBR).
+	## By labeling this code as ".section .boot", we can tell (Why
+	## is this line no longer working) the linker script to place
+	## it at the beginning of the disk image (i.e., in the MBR).
 .section .boot
 
 	
 	/*******************************************************************
 	 *	
-	 * Initialass set up (including the stack)
+	 * Initial set up (including the stack)
 	 *
 	 ******************************************************************/
 	
@@ -214,7 +213,7 @@ do_read:
 	jc sector_read_error  // Report error and halt
 
 
-	add %al, num_sectors_read(%bp)
+	add %al, total_sectors_read(%bp)
 	
 	//
 	// Check if more sectors need to be read.
@@ -245,7 +244,7 @@ do_read:
 	mov $0x20, %al // ' '
 	int $0x10
 
-	jmp .
+	jmp halt
 
 	//
 	// Read more sectors, if necessary.
@@ -531,7 +530,7 @@ sector_read_error:
 	
 	// display the error code
 	//mov %eax, %ecx
-	//call print_word_hex
+	//call print_word_hex<
 
 
 	
@@ -540,7 +539,8 @@ sector_read_error:
 // easy to verify that our boot sector code actually fits in the
 // boot sector.)
 marker:	.asciz "End of Boot Sector"
-
+halt:
+	jmp 0x7dfc
 
 /*******************************************************************
  *	
@@ -1163,9 +1163,7 @@ os_halt:
 	int $0x10
 
 	// Done
-	hlt
-	jmp .
-
+	jmp halt
 
 /********************************************************************/
 /********************************************************************

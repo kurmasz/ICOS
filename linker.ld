@@ -23,13 +23,32 @@ SECTIONS
        won't get loaded.)  */ 
     *(.boot)
 
-    /* BIOS can tell if a device is bootable by looking at the last
+     /* Place the machine code for the instruction 'jmp .' at memory
+        location 0x7dfc.
+
+        The hex value 0xfeeb is the machine code for the assembly
+        instruction 'jmp .'  Executing this instruction enters an
+        infinite loop, effectively terminating the execution of the
+        CPU. Placing this code at location 0x1FC in the image causes
+        it to be placed at memory address 0x7dfc.  Placing this final
+        instruction at a known memory location allows us to write
+        bochs debug scripts that break when the OS terminates (i.e.,
+        when it is directed to address 0x7dfc).  */
+
+      . = 0x1FC;
+      SHORT(0xfeeb)
+
+
+    /* Place the "magic" word 0x55AA at the end of the boot sector.
+
+       BIOS can tell if a device is bootable by looking at the last
        two bytes of the first 512 byte sector.  If they happen to be
        0xAA55, then BIOS assumes the sector contains bootable code.
        The line . = 0x1FE moves the internal pointer up to 0x1FE =
        510; thus, assuring that the "magic word" is placed correctly.
-       */
-    . = 0x1FE;
+     */ 
+
+     . = 0x1FE; 
      SHORT(0xAA55)
 
      /* The code in the ".boot" section (the first 512 bytes) is

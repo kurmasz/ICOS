@@ -28,15 +28,16 @@ void hello_world() {
   vgat_initialize_head_body(&head, &body, 5);
 
   // This string should appear with the vowels capitalized.
-  char hw[] = "Hello, World! (17:32)\n";
+  // The string is 16 characters long so it looks nice in the data dump.)
+  char hw[] = "Hello, Wxrld!!!\n"; 
   upcase_vowels(hw);
   vgat_write_string(&head, hw);
+  data_write_string(hw);
 
   vgat_write_string(&head, "Filling data buffer ...");  
 
   // We use 7-digit numbers so that the output looks nice in hexdump
     for (unsigned i = 2000000; data_buffer_is_full() == 0 ; i++) {
-      //for (unsigned i = 2000000; i < 2000000 + 76000  ; i++) {
     data_write_unsigned(i, " ");
     if (i % 1000 == 0) {
       vgat_write_unsigned(&body, i, " ");

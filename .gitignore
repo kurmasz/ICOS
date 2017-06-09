@@ -5,6 +5,7 @@ obj
 \#*
 .\#*
 .nfs*
+test/tmp/*
 
 
 .idea

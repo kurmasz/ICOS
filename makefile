@@ -25,26 +25,27 @@
 #
 ###############################################################################
 
-OS_SRC  = os_src
-USR_SRC = usr_src
-OS_OBJ = obj/os
+OS_SRC   = os_src
+USR_SRC  = usr_src
+OS_OBJ   = obj/os
 BOOT_OBJ = obj/boot
-USR_OBJ = obj/usr
-elfCC = i686-elf-gcc
-CFLAGS = -std=c99 -ffreestanding -Wall -Wextra -I $(OS_SRC)
+USR_OBJ  = obj/usr
+TEST     = test
+elfCC    = i686-elf-gcc
+CFLAGS    = -std=c99 -ffreestanding -Wall -Wextra -I $(OS_SRC)
 
 os_sources = $(wildcard $(OS_SRC)/*.c)      # all *.c files in the os_src dir
 usr_sources = $(wildcard $(USR_SRC)/*.c)    # all *.c files in the usr_src dir
 
 # Convert each .c file name into the corresponding .o file name
-# (change .c to .o, and change the directory name)
+# (change .c to .o, then change the directory name)
 os_objs = $(subst $(OS_SRC), $(OS_OBJ), $(os_sources:.c=.o))
 usr_objs = $(subst $(USR_SRC), $(USR_OBJ), $(usr_sources:.c=.o))
 
 all: setup hello_world.img
 
 #
-# Make the obj directories, if they don't already exist.
+# Create the obj directories, if they don't already exist.
 #
 $(OS_OBJ):
 	mkdir -p $@
@@ -126,6 +127,28 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
 # unsigned integers and print them out
 %.debug: $(os_sources) $(usr_sources) $(OS_SRC)/ic_util_asm.s | $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) setup
 	gcc $(CFLAGS) -m32 -DDEBUG -g -DKERNEL_MAIN=$* -o $@ $^
+
+
+
+#############################################################################
+#############################################################################
+##
+## Test
+##
+## To run tests
+## (1) bochs must be in the path
+## (2) The BXSHARE environment variable must be set
+############################################################################
+#############################################################################
+
+
+
+test_hello_world:  hello_world.img $(TEST)/debug_steps $(TEST)/bochsrc
+	cp hello_world.img $(TEST)/tmp/hello_world_tmp.img
+	bochs -q -rc $(TEST)/debug_steps -f $(TEST)/bochsrc "floppya: 1_44=$(TEST)/tmp/hello_world_tmp.img, status=inserted"
+	diff $(TEST)/expected_output/hello_world_expected $(TEST)/tmp/hello_world_tmp.img
+	@echo "Hello World Success"
+
 
 
 
