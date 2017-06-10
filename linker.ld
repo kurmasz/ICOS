@@ -66,36 +66,34 @@ SECTIONS
        is placed in ".section .text".  The line below instructs the
        linker to place this remaining code next in the image. */
     *(.text)
-
   }
 
 
   /* Read-only data.  When generating assembly code, gcc places
      hard-coded strings (among other things) in .section .rodata */
-  .rodata ALIGN(1024) :
+  .rodata : ALIGN(512)
   {
     *(.rodata*)  /* using .rodata* includes .rodata.str1.1 */
+    LONG(0x68686868) /* hhhh marks end of .rodata*/
   }
 
   /* Read-write data.  When generating assembly code, gcc places
-  global and static data in .section .data. */
-  .data : ALIGN(1024)
+     global and static data in .section .data. */
+  .data : ALIGN(512)
   {
-    LONG(0x69696969) /* iiii */
+    LONG(0x69696969) /* iiii marks beginning of data*/
     *(.data)
   }
 
-   /* C compilers create a .bss section for staticly allocated
-   variables that are initialized to 0.  (These static variables can 
-   either have file scope or function scope.) */
-   .bss : ALIGN(1024)
-   {
-    LONG(0x20737362)
+  /* C compilers create a .bss section for staticly allocated
+     variables that are initialized to 0.  (These static variables can 
+     either have file scope or function scope.) */
+  .bss : ALIGN(512)
+  {
+    LONG(0x31737362)  /* "bss1" */
     *(.bss*)
-    LONG(0x20737362)
-    }   
-
-
+    LONG(0x32737362)  /* "bss2" */
+  }   
 
 
   /* Data for the disk dump.  To keep the OS as simple as possible,
@@ -109,9 +107,9 @@ SECTIONS
   .data2 :  ALIGN(512)
   {
     *(.data2)
-    /* jjjj (Marker so we can find location in the image.
+    /* jjjj (Marker so we can find location in the image.)
        This marker comes at the end so that the variables in .data2
-       are aligned the way we want */
+       are aligned on 512 byte boundaries */
     LONG(0x6a6a6a6a) 
   }
 
@@ -122,7 +120,7 @@ SECTIONS
       relative to the entire image.  This value is used in boot.S to
       specify the number of sectors that must be loaded
   */
-   __stage2_nsectors = ABSOLUTE((. - __start) / 512);
+   __stage2_nsectors = ABSOLUTE((. - __start) / 512) + 1;
 
    /* Ensure that the generated image is a multiple of 512 bytes
    long. (Some machines and VMs freak out if the boot image is not a

@@ -20,13 +20,18 @@ static unsigned dd_max_place = 0x41424142;         // ABAB
 
 
 // Used for debugging.  (Every time I think I don't need it anymore
-// and delete it, another bug pops up.)
+// and delete it, another bug pops up.)  This function does not appear
+// in the .h file (because we don't want users to think they should be
+// using it.)
 static char* last;
 char* last_loc() {
   return last;
 }
 
-
+// Used for testing.  Specifcally, some tests verify that the initial
+// data for the buffer (which is hard-coded into boot.S) is loaded by
+// the boot loader. (This function does not appear in the .h file
+// (because we don't want users to think they should be using it.)
 char data_charat(size_t p) {
   return dd_buffer[p];
 }

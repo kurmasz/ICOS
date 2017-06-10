@@ -218,13 +218,12 @@ read_cylinder:
 	// Check if more sectors need to be read.
 	//
 	mov total_sectors_read(%bp), %ax
-	mov $__stage2_nsectors, %cx
+	mov $__stage2_nsectors, %bx
 	// GAS/AT&T syntax looks "backwards" when doing comparisons.
 	// cmp op2, op1 checks whether op1 < op2.
-	// Thus, the line below is really asking whether %cx < %ax
-	cmp %ax, %cx                     
+	// Thus, the line below is really asking whether %bx < %ax
+	cmp %ax, %bx                     
 	jle stage2_done
-
 	
 	## At this point, we know we haven't read enough yet.
 	## Increment %es, set %dl to the number of sectors per
@@ -268,52 +267,6 @@ increment_cylinder:
 	mov $0, %dh
 	add $1, %ch // Move to the next cylinder
 	jmp read_cylinder
-
-
-#if 0
-	
-/*******************************************************************
- *	
- * Stage 2 load (loading data beyond initial 512 bytes)
- *
- ******************************************************************/
-
-	/* __stage2_nsectors defined in the linker script. */
-	mov $0x02, %ah	            // magic number to request a read
-	mov $__stage2_nsectors, %al // number of sectors to read
-
-	/* The linker script specifies that code marked with
-	   .section .stage2 be placed exactly 512 bytes from the beginning
-	   of the image.  As a result, the label 1: will be exactly 512 bytes
-	   from the beginning of the image. This is where we want to place
-	   the data we're reading from disk.
-	*/
-	mov $1f, %bx
-
-	/* ch is the starting cylinder number (0 in this case)
-	   cl is the starting sector number (2 in this case, because
-	   sector 1 was loaded by the BIOS
-	*/
-	mov $0x0002, %cx    
-	mov $0x00, %dh      // specify head number
-	mov initial_dl, %dl // specify drive number
-	int $0x13
-
-	//
-	// Print debugging message indicating that the S2 load was attempted
-	//
-	
-	mov $0x0E, %ah
-	mov $'S, %al 
-	int $0x10
-
-	mov $'2, %al 
-	int $0x10
-
-	//
-	// !!! Need to load more sectors in some cases!
-	// 
-#endif
 
 stage2_done:
 
@@ -1235,17 +1188,20 @@ max_buffer_sectors:	 .word 0x43e // Actually +1 for loop purposes
 
 	
 .section .data2
-	// data_buffer_section is where we begin dumping the buffer back
-	// to the boot disk.  This means we can scan the boot disk for
-	// the "magic words" here.
-	//
-	// data_buffer is the address used to initialize the data_buffer
-	// this is where the user-genered data will start to appear.
-
-	// data_buffer_section is set to be exactly 32 bytes long
-	// (including he newline).  This way, it fits nicely in the
-	// hexdump output, and also prints as expected if the raw data is
-	// sent directly to the screen.
+	## data_buffer_section is where we begin dumping the buffer back
+	## to the boot disk.  This means we can scan the boot disk for
+	## the "magic words" here.
+	## 
+	## data_buffer is the address used to initialize the
+	## data_buffer this is where the user-genered data will start
+	## to appear.  (The message that appears here is important
+	## because some of our tests look for this message to verify
+	## that the boot loader works correctly.)
+	## 
+	## data_buffer_section is set to be exactly 32 bytes long
+	## (including he newline).  This way, it fits nicely in the
+	## hexdump output, and also prints as expected if the raw data
+	## is sent directly to the screen.
 data_buffer_section:   .ascii "********* Output Data *********\n" 
-data_buffer:           .ascii "<The actual data will overwrite this>"
+data_buffer:           .ascii "<The actual data will overwrite this>\n"
 
