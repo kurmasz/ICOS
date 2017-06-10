@@ -130,6 +130,12 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
 
 
 
+
+
+
+
+
+
 #############################################################################
 #############################################################################
 ##
@@ -141,7 +147,7 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
 ############################################################################
 #############################################################################
 
-
+test: test_hello_world test_large_code_10 
 
 test_hello_world:  hello_world.img $(TEST)/debug_steps $(TEST)/bochsrc
 	cp hello_world.img $(TEST)/tmp/hello_world_tmp.img
@@ -170,7 +176,6 @@ test_hello_world:  hello_world.img $(TEST)/debug_steps $(TEST)/bochsrc
 #
 ###########################################################################
 
-TEST=test
 LC_TEST=$(TEST)/tmp
 
 test_clean:
@@ -200,6 +205,10 @@ large_code_test_%.img: $(LC_TEST)/ag_large_code_%.o $(LC_TEST)/large_code_test.o
 
 
 
-
+test_large_code_%:  large_code_test_%.img $(TEST)/debug_steps $(TEST)/bochsrc
+	cp large_code_test_$*.img $(LC_TEST)/large_code_test_$*_tmp.img
+	bochs -q -rc $(TEST)/debug_steps -f $(TEST)/bochsrc "floppya: 1_44=$(LC_TEST)/large_code_test_$*_tmp.img, status=inserted"
+	head -c 67 $(LC_TEST)/large_code_test_$*_tmp.img | diff $(TEST)/expected_output/large_code_test_$* -
+	@echo "Large Code $* Success"
 
 

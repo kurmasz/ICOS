@@ -83,18 +83,17 @@
 	*
 	******************************************************************/
 
-	// To properly load multiple sectors from a disk using BIOS
-	// calls, we need to know the disk's "geometry" (i.e., the
-	// number of cylinders, heads, and tracks on the disk.
-	//
-	// We will store this geometry data (as well as a few other
-	// helpful variables) on the stack.
-	// The .set directives below assign each needed datum
-	// an offset from a frame pointer (a location on the stack near the
-	// local variables).
-
-	// TODO:  Change the data size from 4 bytes to 2, since that is
-	// all we need.
+	## To properly load multiple sectors from a disk using BIOS
+	## calls, we need to know the disk's "geometry" (i.e., the
+	## number of cylinders, heads, and tracks on the disk.
+	 
+	## We will store this geometry data (as well as a few other
+	## helpful variables) on the stack.  The .set directives below
+	## assign each needed datum an offset from a frame pointer (a
+	## location on the stack near the local variables).
+	 
+	## TODO: Change the data size from 4 bytes to 2, since that is
+	## all we need.
 	
 	.set drive_type,              -4
 	.set max_sector_num,          -8
@@ -103,15 +102,17 @@
 	.set num_drives,             -20
 	.set total_sectors_read,     -24
 
-	// Set the frame pointer (%bp) to the current top of the stack.
-	// The frame pointer will "point" to the beginning of the
-	// local variables.
+	## Set the frame pointer (%bp) to the current top of the
+	## stack.  The frame pointer will "point" to the beginning of
+	## the local variables.
 	mov %sp, %bp
 
 	
 	// Make room on the stack for the local variables.
 	add $total_sectors_read, %sp	
-	movw $0, total_sectors_read(%bp)
+
+	## At this point, one sector has been read:  The boot sector
+	movw $1, total_sectors_read(%bp)
 	// The top of the stack is now after the local variables.  In
 	// other words, the local variables are now safely on the stack.
 
@@ -122,6 +123,9 @@
 	//
 	// (In other words, query BIOS for the drive geometry.)
 	//
+	// TODO:  Make this a function so we don't have the same code
+	//        repeated before writing the buffer
+	// 
 	////////////////////////////////////////////////////////////
 
 	// (www.ctyme.com/intr/rb-0621.html recommends that %es:%di be 0:0)
@@ -180,24 +184,20 @@
 	//////////////////////////////////////////////////////
 
 
-	// The target address is 0x7c00 + 512 = 0x7e00.  Using segments,
-	// that address would be 0000:7e00; however, because we will
-	// probably be writing beyond segment 0, we'll "re-phrase" the target
-	// address as 07c0:0200.  (512 = 0x200)
+	## The target address is 0x7c00 + 512 = 0x7e00.  Using
+	## segments, that address would be 0000:7e00; however, because
+	## we will probably be writing beyond segment 0, we'll
+	## "re-phrase" the target address as 07c0:0200.  (512 = 0x200)
 	mov $0x7c0, %ax
 	mov %ax, %es
 	mov $512, %bx
 	
-	// %al is number of sectors to load.  We want to load one
-	// sector less than a full track.  (Because BIOS already loaded
-	// the first sector for us --- the MBR.)
+	## %al is number of sectors to load.  We want to load one
+	## sector less than a full track.  (Because BIOS already
+	## loaded the first sector for us --- the MBR.)
 	mov max_sector_num(%bp), %al
 	add $-1, %al
 
-
-do_read:	
-	// 0x02 is the code to read sectors
-	mov $0x02, %ah        
 
 	// Begin reading from sector 2.  (The BIOS already read sector 1.)
 	mov $0x2, %cl
@@ -205,17 +205,19 @@ do_read:
 	mov $0x00, %dh      // Read from head 1
 	mov initial_dl, %dl
 
+read_cylinder:	
+	// 0x02 is the code to read sectors
+	mov $0x02, %ah        
+
 	int $0x13
 	jc sector_read_error  // Report error and halt
-
 
 	add %al, total_sectors_read(%bp)
 	
 	//
 	// Check if more sectors need to be read.
 	//
-
-	mov max_sector_num(%bp), %ax
+	mov total_sectors_read(%bp), %ax
 	mov $__stage2_nsectors, %cx
 	// GAS/AT&T syntax looks "backwards" when doing comparisons.
 	// cmp op2, op1 checks whether op1 < op2.
@@ -223,175 +225,50 @@ do_read:
 	cmp %ax, %cx                     
 	jle stage2_done
 
-//
-	// TODO:  Increment %es and set %dl to #tracks
-	// and go back to do_read
 	
-	mov $0x0E, %ah
-	mov $'B, %al 
-	int $0x10
-	
-	mov $'i, %al 
-	int $0x10
-	
-	mov $'g, %al
-	int $0x10
+	## At this point, we know we haven't read enough yet.
+	## Increment %es, set %dl to the number of sectors per
+	## cylinder and read some more
 
-	mov $0x20, %al // ' '
-	int $0x10
+	## We need to increment the target address by
+	## 512*(max_sector_num).  We are going to move the segment
+	## pointer only, which we do by adding 512/16 =
+	## 32*max_sector_num. (A short-cut for multiplying by 32 is to
+	## shift left by 5.)
 
-	jmp halt
-
-	//
-	// Read more sectors, if necessary.
-	//
-	
-	// When using BIOS to read data, destination address goes in %es:%bx.
-	//
-	// Incrementing the segment (i.e., %es) by 1 increases the
-	// physical memory address.  Because each sector is 512 bytes ---
-	// a multiple of 16 --- it is sufficient to set %bx to 0 and
-	// increment %es only.
-	//
-	// We just loaded an entire track, 512*max_sector_num bytes.
-	// To point at the new destination, we can increment %ex by
-	// (512*max_sector_num)/16 = 32*max_sector_num.  An easy way to
-	// multiply by 32 is to shift left 5.
-
-	mov $0, %bx
-	jmp read_track_done
-	
-	
-	mov $0, %ch                      // Cylinder number
-	mov $0x1, %cl                    // Target sector (indexed from 1)
-	mov initial_dl, %dl              // Drive head (saved earlier)
-
-	// The initial read was to disk head 0, so we set dh to 1.
-	mov $0x1, %dh		         // Disk head
-
-
-	//
-	// Read an entire track
-	//
-read_track:	
-	mov $0x02, %ah                  // BIOS command to read disk
-	mov max_sector_num(%bp), %al    // Read entire track
-	int $0x13
-	jnc continue1r
-
-	// Sometimes a BIOS disk read will fail.  Sources suggest
-	// trying three times before giving up.  (For now, we'll give up
-	// after two attempts.)
-	mov $0x0E, %ah
-	mov $'!, %al
-	int $0x10
-
-
-	mov $0x02, %ah                // BIOS command to read disk
-	mov max_sector_num(%bp), %al  // Read entire track
-	int $0x13
-	jc sector_read_error
-
-	/*
-	push %ecx
-	mov total_sectors_written, %ecx
-	call print_word_hex
-	pop %ecx
-*/
-
-continue1r:	
-	
-	// Move the data pointer.  Remember, instead of moving the base
-	// address, we move the segment (%es) only.  Advancing the segment
-	// by 1 moves 16 bytes forward in memory.  Thus, to point at the
-	// next 512 byte segment, we advance %es by 512/16 = 32.
-	mov %es, %bx
-	add $32, %bx
-	mov %bx, %es
-	mov $0, %bx
-
-	mov max_sector_num(%bp), %ax
-	add %ax, total_sectors_written(%bp)
-
-	// We are completely done writing when we've written
-	// max_buffer_sectors sectors
-	cmp __stage2_nsectors, %ax
-	jge stage2_done
-
-	
-	// If we just wrote the max_sector_num,
-	// then we need to move to a new track
-	cmp max_sector_num(%bp), %cl
-	je read_track_done
-	
-	add $1, %cl       // Increment the sector number
-	
-	jmp read_track   // go back and read the next track
-
-read_track_done:
-
-	mov $0x0E, %ah
-	mov $0x2e, %al // '.'
-	int $0x10
-
-	/* For debugging
-	push %ecx
-	mov total_sectors_written(%bp), %ecx
-	call print_word_hex
-	pop %ecx
-	*/
-
-	// Update destination pointer
-	mov $0, %bx
 	mov max_sector_num(%bp), %ax
 	shl $5, %ax
-	mov %es, %cx
-	add %ax, %cx
-	mov %cx, %es
-	
-	mov $1, %cl             // Reset to sector 1.
+	mov %es, %bx
+	add %bx, %ax
+	mov %ax, %es
+
+	## The very first read sets %bx to 512 so we don't overwrite
+	## the boot sector.  For all other reads, %bx can be set back
+	## to 0.
+	mov $0, %bx
+
+	## %al is number of sectors to load. 
+	mov max_sector_num(%bp), %al
+
+	// Sectors are numbered beginning at 1.
+	mov $0x1, %cl
+
 
 	// Check whether we are using the last head
 	cmp max_head_num(%bp), %dh
-	je read_next_cylinder
-
-	// If we aren't using the last head, increment
-	// and move on
+	je increment_cylinder
+	
+	## If we aren't using the last head, increment and move on
 	add $1, %dh             // move to the next head.
-	jmp write_track
+	jmp read_cylinder
 
 	// Otherwise, re-set head to 0 and increment the cylinder number
-read_next_cylinder:	
+increment_cylinder:	
 
 	mov $0, %dh
 	add $1, %ch // Move to the next cylinder
-	jmp read_track
-		
-	
-/*
-	// (Left over from debugging)
-	// test write back to boot device
-	mov $0x03, %ah
-	mov $1, %al
-	mov $marker, %bx
-	mov $0, %ch
-	mov $0x1, %cl
-	mov $0x00, %dh
-	int $0x13
-	jc oops1
-	
-	mov $0x0E, %ah
-	mov $0x47, %al // 'G'
-	int $0x10
-	jmp .
-	
-oops1:
-	mov $0x0E, %ah
-	mov $0x42, %al // 'B'
-	int $0x10
+	jmp read_cylinder
 
-	jmp .
-*/
 
 #if 0
 	
