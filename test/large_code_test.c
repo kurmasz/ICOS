@@ -2,7 +2,7 @@
 #include "vga_text.h"
 #include "data_buffer.h"
 
-unsigned use_all(unsigned);
+unsigned use_all(vga_text_section_t*, unsigned);
 unsigned expected_output(unsigned);
 
 // This function is declared here because it should be used for
@@ -55,7 +55,7 @@ void large_code_test() {
 
   unsigned seed = 7;
   unsigned expected = expected_output(seed);
-  unsigned observed = use_all(seed);
+  unsigned observed = use_all(&body, seed);
   vgat_write_string(&head, "Expected: ");
   vgat_write_unsigned(&head, expected, "\nObserved: ");
   vgat_write_unsigned(&head, observed, "\n");

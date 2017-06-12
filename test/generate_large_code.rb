@@ -36,14 +36,20 @@ end
 
 calls = []
 
+puts '#include "vga_text.h"'
+puts
+
 (1..num_functions).each do |i|
     puts make_fn(i);
     calls << "    sum = func#{i}(sum);"
+    if (i % 100 == 0) 
+      calls << "    vgat_write_unsigned(body, #{i}, \" \");"
+    end
 end
 
 
   body=<<-HERE
-     unsigned use_all(unsigned x) {
+     unsigned use_all(vga_text_section_t* body, unsigned x) {
        unsigned sum = x;
        #{calls.join("\n")}
        return sum;

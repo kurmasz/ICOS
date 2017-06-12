@@ -187,27 +187,32 @@
 	## The target address is 0x7c00 + 512 = 0x7e00.  Using
 	## segments, that address would be 0000:7e00; however, because
 	## we will probably be writing beyond segment 0, we'll
-	## "re-phrase" the target address as 07c0:0200.  (512 = 0x200)
-	mov $0x7c0, %ax
+	## "re-phrase" the target address as 07e0:0000.
+	mov $0x7e0, %ax
 	mov %ax, %es
-	mov $512, %bx
+	mov $0, %bx
 	
-	## %al is number of sectors to load.  We want to load one
-	## sector less than a full track.  (Because BIOS already
-	## loaded the first sector for us --- the MBR.)
-	mov max_sector_num(%bp), %al
-	add $-1, %al
-
-
 	// Begin reading from sector 2.  (The BIOS already read sector 1.)
 	mov $0x2, %cl
         mov $0x0, %ch       // Read from cylinder 0
 	mov $0x00, %dh      // Read from head 1
 	mov initial_dl, %dl
 
-read_cylinder:
-	// 0x02 is the code to read sectors
-	mov $0x02, %ah        
+read_sector:
+	## 0x02 is the code to read sectors
+	mov $0x02, %ah
+	
+	## %al is the number of sectors to read.  For simplicity, read
+	## one sector at a time.
+	##
+	## (Yes, it would be faster to read multiple sectors; but,
+	## doing this complicates the code.  In particular, some CPUS
+	## don't allow reads and writes to cross a 64KiB boundary in
+	## memory.  Since floppy disks have 18 tracks per sector, and
+	## this doesn't divide evenly into 64KiB, we we would have to
+	## watch for, and specially handle the reads that might cross
+	## this boundary.)
+	mov $0x01, %al
 
 	int $0x13
 	jc sector_read_error  // Report error and halt
@@ -215,8 +220,9 @@ read_cylinder:
 	add %al, total_sectors_read(%bp)
 
 	mov $0x0E, %ah
-	mov $'q, %al 
+	mov $'., %al 
 	int $0x10
+
 	
 	//
 	// Check if more sectors need to be read.
@@ -230,32 +236,29 @@ read_cylinder:
 	jle stage2_done
 	
 	## At this point, we know we haven't read enough yet.
-	## Increment %es, set %dl to the number of sectors per
-	## cylinder and read some more
-
-	## We need to increment the target address by
-	## 512*(max_sector_num).  We are going to move the segment
-	## pointer only, which we do by adding 512/16 =
-	## 32*max_sector_num. (A short-cut for multiplying by 32 is to
-	## shift left by 5.)
-
-	mov max_sector_num(%bp), %ax
-	shl $5, %ax
+	## Move the data pointer.  Remember, instead of moving the base
+	## address, we move the segment (%es) only.  Advancing the segment
+	## by 1 moves 16 bytes forward in memory.  Thus, to point at the
+	## next 512 byte segment, we advance %es by 512/16 = 32.
 	mov %es, %bx
-	add %bx, %ax
-	mov %ax, %es
-
-	## The very first read sets %bx to 512 so we don't overwrite
-	## the boot sector.  For all other reads, %bx can be set back
-	## to 0.
+	add $32, %bx
+	mov %bx, %es
 	mov $0, %bx
 
-	## %al is number of sectors to load. 
-	mov max_sector_num(%bp), %al
+	## If we just read the max_sector_num, then we need to move
+	## to a new track
+	cmp max_sector_num(%bp), %cl
+	je read_track_done
 
-	// Sectors are numbered beginning at 1.
-	mov $0x1, %cl
+	add $1, %cl 	 // increment the sector number
+	jmp read_sector  // go back and read the next sector 
 
+read_track_done:
+	mov $0x0E, %ah
+	mov $'+, %al 
+	int $0x10
+
+	mov $1, %cl
 
 	// Check whether we are using the last head
 	cmp max_head_num(%bp), %dh
@@ -263,19 +266,14 @@ read_cylinder:
 	
 	## If we aren't using the last head, increment and move on
 	add $1, %dh             // move to the next head.
-	jmp read_cylinder
+	jmp read_sector
 
 	// Otherwise, re-set head to 0 and increment the cylinder number
 increment_cylinder:	
-
-	mov $0x0E, %ah
-	mov $'i, %al 
-	int $0x10
-	mov max_sector_num(%bp), %al
 	
 	mov $0, %dh
 	add $1, %ch // Move to the next cylinder
-	jmp read_cylinder
+	jmp read_sector
 
 stage2_done:
 
@@ -288,7 +286,6 @@ stage2_done:
 	mov $'2, %al
 	int $0x10
 
-	jmp .
 	// At this point, we believe we have loaded the rest of the code
 	// and placed in memory beginning 512 bytes after 0x7c00.
 	// The linker script specifies that the code in .section .stage2
@@ -910,21 +907,20 @@ continue1:
 	// We are completely done writing when we've written
 	// max_buffer_sectors sectors
 	mov total_sectors_written(%bp), %ax
-div1:	
 	cmp max_buffer_sectors, %ax
 	je write_done
 
 	
-	// If we just wrote the max_sector_num,
-	// then we need to move to a new track
+	## If we just wrote the max_sector_num, then we need to move
+	## to a new track
 	cmp max_sector_num(%bp), %cl
-	je track_done
+	je write_track_done
 	
 	add $1, %cl       // Increment the sector number
 	
 	jmp write_track   // go back and write the next sector
 
-track_done:
+write_track_done:
 
 	mov $0x0E, %ah
 	mov $0x2e, %al // '.'
