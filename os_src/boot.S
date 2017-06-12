@@ -205,7 +205,7 @@
 	mov $0x00, %dh      // Read from head 1
 	mov initial_dl, %dl
 
-read_cylinder:	
+read_cylinder:
 	// 0x02 is the code to read sectors
 	mov $0x02, %ah        
 
@@ -213,6 +213,10 @@ read_cylinder:
 	jc sector_read_error  // Report error and halt
 
 	add %al, total_sectors_read(%bp)
+
+	mov $0x0E, %ah
+	mov $'q, %al 
+	int $0x10
 	
 	//
 	// Check if more sectors need to be read.
@@ -264,6 +268,11 @@ read_cylinder:
 	// Otherwise, re-set head to 0 and increment the cylinder number
 increment_cylinder:	
 
+	mov $0x0E, %ah
+	mov $'i, %al 
+	int $0x10
+	mov max_sector_num(%bp), %al
+	
 	mov $0, %dh
 	add $1, %ch // Move to the next cylinder
 	jmp read_cylinder
@@ -279,7 +288,7 @@ stage2_done:
 	mov $'2, %al
 	int $0x10
 
-	
+	jmp .
 	// At this point, we believe we have loaded the rest of the code
 	// and placed in memory beginning 512 bytes after 0x7c00.
 	// The linker script specifies that the code in .section .stage2
@@ -844,8 +853,9 @@ real:
 	// source address as 0:%bx (e.g., 0:64).  We then divide %bx by
 	// 16 to compute the segment at which the buffer begins.
 	// (In other words, we're converting 0:64 into 16:0.)
-	mov $data_buffer_section, %bx
-	shr $4, %bx
+	
+	movl $data_buffer_section, %ebx
+	shr $4, %ebx
 	mov %bx, %es
 	mov $0, %bx
 
@@ -900,6 +910,7 @@ continue1:
 	// We are completely done writing when we've written
 	// max_buffer_sectors sectors
 	mov total_sectors_written(%bp), %ax
+div1:	
 	cmp max_buffer_sectors, %ax
 	je write_done
 
@@ -1168,8 +1179,12 @@ print_drive_parameters:
  *******************************************************************/
 /*******************************************************************/
 
+	// We're "cheating" here and placing this data in the "stage2"
+	// section so that the linker will almost certainly place it in
+	// segment 0.  This greatly simplifies the writing of the code
+	// using this data.
+.section .stage2
 	
-.section .data
 max_sector_size_str:	.asciz "Max sector num: "
 max_cylinder_str:	.asciz "Max cylinder: "
 max_head_num_str:	.asciz "Max head num: "
@@ -1184,8 +1199,6 @@ num_drives_str:	        .asciz "Num drives: "
 	// purpose.)
 //max_buffer_sectors:	.word ((0x9fc00 - data_buffer) / 512)
 max_buffer_sectors:	 .word 0x43e // Actually +1 for loop purposes
-
-
 	
 .section .data2
 	## data_buffer_section is where we begin dumping the buffer back

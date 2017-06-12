@@ -208,7 +208,7 @@ $(LC_TEST)/large_code_test_boot.o: $(OS_SRC)/boot.S
 # don't want other user code (or previously augo-generated large files)
 # to influence the image size.
 large_code_test_%.img: $(LC_TEST)/ag_large_code_%.o $(LC_TEST)/large_code_test.o  $(LC_TEST)/large_code_test_boot.o $(os_objs) $(OS_OBJ)/ic_util_asm.o | linker.ld setup
-	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map_lc.txt
+	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map_lc_$*.txt
 
 
 
