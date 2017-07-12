@@ -52,11 +52,12 @@ CFLAGS    = -std=c99 -ffreestanding -fno-asynchronous-unwind-tables -Wall -Wextr
 os_headers = $(wildcard $(OS_SRC)/*.h)      # all *.h files in the os_src dir
 os_c_sources = $(wildcard $(OS_SRC)/*.c)    # all *.c files in the os_src dir
 os_s_sources = $(wildcard $(OS_SRC)/*.s)    # all *.s files in the os_src dir
+os_sources = $(os_c_sources) $(os_s_sources)
 
 usr_headers = $(wildcard $(USR_SRC)/*.h)    # all *.h files in the usr_src dir
 usr_c_sources = $(wildcard $(USR_SRC)/*.c)  # all *.c files in the usr_src dir
 usr_s_sources = $(wildcard $(USR_SRC)/*.s)  # all *.s files in the usr_src dir
-
+usr_sources = $(usr_c_sources) $(usr_s_sources)
 
 # Convert each .c/.s file name into the corresponding .o file name
 # (change .c/.s to .o, then change the directory name)
@@ -152,7 +153,7 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.s $(os_headers) $(usr_headers) | $(USR_OBJ)
 # Note the -m32 flag below.  This causes pointers to be 32 bits
 # instead of 64, and therefore allows us to convert pointers to
 # unsigned integers and print them out
-%.debug: $(os_sources) $(usr_sources) $(OS_SRC)/ic_util_asm.s | $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) setup
+%.debug: $(os_sources) $(usr_sources) | $(os_headers) $(usr_headers) setup
 	gcc $(CFLAGS) -m32 -DDEBUG -g -DKERNEL_MAIN=$* -o $@ $^
 
 
