@@ -25,14 +25,19 @@
 #
 ###############################################################################
 
+#
+# Directories
+#
 OS_SRC   = os_src
 USR_SRC  = usr_src
 OS_OBJ   = obj/os
 BOOT_OBJ = obj/boot
 USR_OBJ  = obj/usr
 TEST     = test
-elfCC    = i686-elf-gcc
 
+
+# Elf compiler
+elfCC    = i686-elf-gcc
 
 # The -fno-asynchronous-unwind-tables tells gcc not to include the
 # .eh_frame in the object files.  This data is primarily used for
@@ -40,13 +45,23 @@ elfCC    = i686-elf-gcc
 # (See https://stackoverflow.com/questions/26300819)
 CFLAGS    = -std=c99 -ffreestanding -fno-asynchronous-unwind-tables -Wall -Wextra -I $(OS_SRC)
 
-os_sources = $(wildcard $(OS_SRC)/*.c)      # all *.c files in the os_src dir
-usr_sources = $(wildcard $(USR_SRC)/*.c)    # all *.c files in the usr_src dir
 
-# Convert each .c file name into the corresponding .o file name
-# (change .c to .o, then change the directory name)
-os_objs = $(subst $(OS_SRC), $(OS_OBJ), $(os_sources:.c=.o))
-usr_objs = $(subst $(USR_SRC), $(USR_OBJ), $(usr_sources:.c=.o))
+#
+# Files
+#
+os_headers = $(wildcard $(OS_SRC)/*.h)      # all *.h files in the os_src dir
+os_c_sources = $(wildcard $(OS_SRC)/*.c)    # all *.c files in the os_src dir
+os_s_sources = $(wildcard $(OS_SRC)/*.s)    # all *.s files in the os_src dir
+
+usr_headers = $(wildcard $(USR_SRC)/*.h)    # all *.h files in the usr_src dir
+usr_c_sources = $(wildcard $(USR_SRC)/*.c)  # all *.c files in the usr_src dir
+usr_s_sources = $(wildcard $(USR_SRC)/*.s)  # all *.s files in the usr_src dir
+
+
+# Convert each .c/.s file name into the corresponding .o file name
+# (change .c/.s to .o, then change the directory name)
+os_objs =  $(subst $(OS_SRC), $(OS_OBJ), $(os_c_sources:.c=.o) $(os_s_sources:.s=.o))
+usr_objs = $(subst $(USR_SRC), $(USR_OBJ), $(usr_c_sources:.c=.o) $(usr_s_sources:.s=.o))
 
 all: setup hello_world.img
 
@@ -77,16 +92,20 @@ clean:
 #
 #############################################################################
 
+COMPILE = $(elfCC) $(CFLAGS) -c $< -o $@ -O2 -I $(OS_SRC)
+
 # Headers shouldn't change much.  If they do, then just re-build all
 # the .o files
-$(OS_OBJ)/%.o: $(OS_SRC)/%.c $(wildcard $(OS_SRC)/*.h) | $(OS_OBJ)
-	$(elfCC) $(CFLAGS) -c $< -o $@ -O2
+$(OS_OBJ)/%.o: $(OS_SRC)/%.c $(os_headers) | $(OS_OBJ)
+	$(COMPILE)
         # generate the assembly file, in case we want to look at it later.
 	$(elfCC) $(CFLAGS) -S $< -o $(@:.o=.s) -O2 
 
 # A few OS-supplied routines are better implemented in assembly
-$(OS_OBJ)/ic_util_asm.o: $(OS_SRC)/ic_util_asm.s | $(OS_OBJ)
-	$(elfCC) $(CFLAGS) -c $< -o $@ -O2
+#$(OS_OBJ)/ic_util_asm.o: $(OS_SRC)/ic_util_asm.s | $(OS_OBJ)
+#	$(elfCC) $(CFLAGS) -c $< -o $@ -O2
+$(OS_OBJ)/%.o: $(OS_SRC)/%.s $(os_headers) | $(OS_OBJ)
+	$(COMPILE)
 
 # By naming the file boot.S (instead of boot.s), gcc will run the 
 # pre-processor and substitute KERNEL_MAIN with the pattern stem, which 
@@ -103,11 +122,13 @@ $(BOOT_OBJ)/%.o: $(OS_SRC)/boot.S
 
 # Headers shouldn't change much.  If they do, then just re-build all the 
 # .o files
-$(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_OBJ)
-	$(elfCC) $(CFLAGS) -c $< -o $@ -I $(OS_SRC)
+$(USR_OBJ)/%.o: $(USR_SRC)/%.c $(os_headers) $(usr_headers) | $(USR_OBJ)
+	$(COMPILE)
         # generate the assembly file, in case we want to look at it later.
 	$(elfCC) $(CFLAGS) -S $< -o $(@:.o=.s) -I $(OS_SRC) 
 
+$(USR_OBJ)/%.o: $(USR_SRC)/%.s $(os_headers) $(usr_headers) | $(USR_OBJ)
+	$(COMPILE)
 
 ############################################################################
 #
@@ -115,7 +136,7 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
 #
 ###########################################################################
 
-%.img: $(BOOT_OBJ)/%.o $(os_objs) $(usr_objs) $(OS_OBJ)/ic_util_asm.o | linker.ld setup
+%.img: $(BOOT_OBJ)/%.o $(os_objs) $(usr_objs) | linker.ld setup
 	i686-elf-ld --oformat binary -o $@ $^ -T linker.ld --print-map > /tmp/icos_map.txt
 
 
@@ -133,7 +154,6 @@ $(USR_OBJ)/%.o: $(USR_SRC)/%.c $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) | $(USR_
 # unsigned integers and print them out
 %.debug: $(os_sources) $(usr_sources) $(OS_SRC)/ic_util_asm.s | $(OS_SRC)/*.h $(wildcard $(USR_SRC)/*.h) setup
 	gcc $(CFLAGS) -m32 -DDEBUG -g -DKERNEL_MAIN=$* -o $@ $^
-
 
 
 
